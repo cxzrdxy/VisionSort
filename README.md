@@ -11,19 +11,39 @@ MySQL 落库 + Excel 导出，全流程无人干预。
 
 ## 一、系统架构
 
-```mermaid
-flowchart LR
-    UI["VisionSort.exe (x64 / WinForms)<br/>5 个功能页 + 服务层"]
-    UI -->|"回环 UDP 127.0.0.1:18899<br/>自研 KV 线协议"| Bridge["DobotArmBridge.exe (x86)<br/>宿主官方 DobotDll.dll"]
-    Bridge -->|"USB 串口 115200-8-N-1"| Arm["Dobot Magician 四轴机械臂"]
-    UI -->|"GigE Vision"| Cam["工业相机"]
-    UI -->|"Modbus RTU 9600-8-N-1"| Belt["传送带变频器"]
-    UI --> DB[("MySQL 8.0")]
+```text
+VisionSort.exe   (x64 / .NET Framework 4.8 / WinForms)
+|
+|-- 5 个功能页
+|     主运行 / 设备调试 / 视觉配置 / 数据日志 / 系统设置
+|
+|-- 服务层
+|     ProductionRunner      生产主循环状态机 (跑在后台线程)
+|     VisionScheme          VPP 加载 / PatMax 定位与判定 / 模板原点核对
+|     PmaTemplateTrainer    PatMax 模板训练与自检
+|     CalibrationService    九点标定: 拟合 / 精度指标 / 手性校验 / 像素 -> 毫米
+|     CameraService         共享 GigE 取像 FIFO (两个页面共用一个相机)
+|     ConveyorSettings      传送带 Modbus RTU 主站 (信号量串行化)
+|     ResultRepository      写库队列 + 断网补写 + 幂等重试
+|     ImageSaver / XlsxWriter          检测图落盘 / 零依赖 xlsx 导出
+|     RobotPickPlace / RobotArmService NG 分拣动作 / 机械臂连接管理
+|
++-- 外部连接
+      GigE Vision                --> 工业相机
+      Modbus RTU (9600-8-N-1)    --> 传送带变频器 (站号 2, 寄存器 100/101/102)
+      ADO.NET (MySqlConnector)   --> MySQL 8.0 (vision_sort.vision_result)
+      回环 UDP 127.0.0.1:18899   --> DobotArmBridge.exe (x86, 独立进程)
+        |   自研 KV 线协议, 12 条命令, 一问一答 + seq 校验
+        |
+        +-- 宿主官方 DobotDll.dll + Qt5x3 + MSVCx2 (共 6 个原生依赖)
+        +-- 崩溃也带不走 x64 主程序; 可脱离主程序单独启动手工验证
+        |
+        +-- USB 串口 115200-8-N-1 --> Dobot Magician 四轴机械臂
 ```
 
 设计要点：
 
-- **x64 主程序零原生依赖**，唯一接触 32 位机器人原生 DLL 的地方是独立的 x86 桥接进程（崩溃也带不走主程序）。
+- **x64 主程序零原生依赖**，唯一接触 32 位机器人原生 DLL 的地方是独立的 x86 桥接进程。
 - **桥接进程可脱离主程序单独启动**，用一行文本报文即可手工验证，现场排障成本低。
 - 视觉得到的是**像素坐标**，经九点标定换算成机械臂毫米坐标后，取料点不再写死——工件停在哪儿都能抓。
 
