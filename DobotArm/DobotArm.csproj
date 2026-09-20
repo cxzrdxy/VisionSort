@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>DobotArm</AssemblyName>
+    <RootNamespace>DobotArm</RootNamespace>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <!-- 刻意不引任何第三方包，也不引 Cognex/WinForms：
+       只依赖 BCL（System.dll / System.IO.Ports），这样这个项目可以独立编译、
+       独立测试、换台机器也能跑。机械臂那边由 x86 桥接进程 DobotArmBridge 负责。 -->
+
+  <ItemGroup>
+    <!-- 线协议：与桥接进程编译同一份源码（见 Shared\BridgeProtocol.cs 文件头说明）。 -->
+    <Compile Include="..\Shared\BridgeProtocol.cs" Link="Ipc\BridgeProtocol.cs" />
+  </ItemGroup>
+
+</Project>

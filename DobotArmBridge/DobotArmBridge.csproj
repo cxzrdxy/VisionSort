@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>DobotArmBridge</AssemblyName>
+    <RootNamespace>DobotArmBridge</RootNamespace>
+    <Platforms>x86</Platforms>
+    <!-- 钉死 x86：官方 DobotDll.dll 只有 32 位版本，
+         x64 进程加载它会 BadImageFormatException（见 机械臂TCP控制方案.md §一）。 -->
+    <PlatformTarget>x86</PlatformTarget>
+    <!-- 输出路径不带平台名，便于 VisionSort 用固定路径把 exe + 原生 DLL 拷到 ArmBridge\，
+         避免被 ProjectReference 传进来的 Platform=x64 改到 bin\x64\ 去。 -->
+    <AppendPlatformToOutputPath>false</AppendPlatformToOutputPath>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 线协议：与 DobotArm 客户端编译同一份源码，永远只有一份定义。 -->
+    <Compile Include="..\Shared\BridgeProtocol.cs" Link="Ipc\BridgeProtocol.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 官方原生依赖：拷到 exe 同目录（DobotDll.dll + Qt5×3 + msvcp120/msvcr120，共 ~6.9 MB）。
+         自带这些 DLL 就不需要目标机预装 Qt 或 VC++2013 运行库。 -->
+    <Content Include="deps\*.dll">
+      <Link>%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- 构建期硬门槛：x64 构建直接失败。
+       官方 DobotDll.dll 只有 32 位版本，x64 进程加载它会 BadImageFormatException；
+       而 ProjectReference 会带着 Platform=x64 来构建本项目，这是最容易被静默带错的地方。 -->
+  <Target Name="EnsureX86" BeforeTargets="CoreCompile">
+    <Error Condition="'$(PlatformTarget)' != 'x86'"
+           Text="DobotArmBridge 必须是 x86（官方 DobotDll.dll 只有 32 位）。当前 PlatformTarget='$(PlatformTarget)'。" />
+  </Target>
+
+</Project>
