@@ -2,7 +2,7 @@
 
 > 项目：**`DobotArmBridge`**（新增，x86 控制台进程，宿主官方原生 DLL） + **`DobotArm`**（改造为 UDP 客户端类库） + `D:\visionPor\20260914-资料\04-WinForms\VisionSort`（x64 引用方）
 > 页面：`Views/DeviceDebugView.cs` → `grpRobot`「机械臂控制」 + `Views/SysConfigView.cs` → `grpRobotCfg`「◆ 机械臂配置」
-> 版本：v3.0（**已落盘并验证** —— 三步全部完成，见 §十 / §十一 / §十二；本机可做的验证已做完，只剩现场真机 T-live）
+> 版本：v3.0（**已落盘并验证** —— 三步全部完成，见 §十 / §十一 / §十二；**现场真机联调已完成，2026-09-28**：§6.1 的 S1-5~S1-8 已随全流程连续分拣闭环在真机上跑通）
 > 已定：机械臂 **USB 线常连** → 可用官方 DLL；架构选 **甲（桥接进程 + 官方 DLL）**。
 > 沿用不改：机型 **Dobot Magician**；Q2 点动＝机械臂自身 JOG；Q3 **软件端队列**（§9 留档）；Q4 定时 `GetPose` 轮询；Q5 只做吸盘、真空反馈显示 `--`；步距＝按住连续 JOG + 单击走一步。
 > 文件名 `机械臂TCP控制方案.md` 是历史名，v1.4 才是 TCP 文本，v2.1 是官方二进制协议，v3.0 是官方 DLL —— 文件名保持不变只为不打断已有引用。
@@ -42,8 +42,8 @@
 │      ├ BridgeLine (KV 编解码)│ :18899  │  └ deps\ DobotDll + Qt5×3 + msvc×2  │
 │      └ BridgeProcess (拉起)  │         └──────────────┬─────────────────────┘
 └──────────────────────────────┘                        │ USB 串口 115200-8-N-1
-                                                        ▼
-                                                 Dobot Magician (4 轴)
+                                                         ▼
+                                                  Dobot Magician (4 轴)
 ```
 
 - **桥接进程是唯一接触原生 DLL 的地方**：x86、独立进程、崩了也带不走 VisionPro。
@@ -67,7 +67,7 @@
 ```
 请求（VisionSort → 桥接）：cmd=<名字>[;key=value]…[;seq=<n>]
 应答（桥接 → VisionSort）：ok=1[;key=value]…;seq=<n>        成功
-                            ok=0;err=<错误码>;msg=<中文说明>;seq=<n>   失败
+                             ok=0;err=<错误码>;msg=<中文说明>;seq=<n>   失败
 编码：ASCII/UTF-8，单包一行，无换行；字段顺序无关；缺省字段用默认值
 传输：UDP，VisionSort → 127.0.0.1:18899；应答回发到请求的源端口
 ```
@@ -158,7 +158,7 @@
 | `DobotArmBridge/DobotArmBridge.csproj` | net48 + `<PlatformTarget>x86</PlatformTarget>` 钉死 + `EnsureX86` 构建期门槛 + `deps\*.dll` 作 Content 拷到输出根 | 41 |
 | `DobotArmBridge/Program.cs` | 参数解析、单实例 Mutex、日志、主循环装配、退出清理 | 89 |
 | `DobotArmBridge/BridgeServer.cs` | UDP 收发、KV 解析/回包、异常→错误码映射 | 91 |
-| `DobotArmBridge/BridgeCommands.cs` | 12 条命令分发 + 连接时序 + 幂等 | 433 |
+| `DobotArmBridge/BridgeCommands.cs` | 12 条命令分发 → 官方 DLL；连接时序、幂等、错误码→中文提示 | 433 |
 | `DobotArmBridge/Native/DobotApi.cs` | P/Invoke 声明（**照抄官方 demo**，取用其中 **16 个**导出函数）+ 结构体 | 187 |
 | `DobotArmBridge/BridgeLog.cs` | stdout（逐行 Flush）+ `DobotArmBridge.log`（超 2 MB 重开） | 60 |
 | `DobotArmBridge/deps/` | 6 个官方原生 DLL（从 `Dobot Demo V2.3-zh\...\DobotDll\` 复制） | — |
@@ -340,7 +340,10 @@ $c.Send([Text.Encoding]::ASCII.GetBytes('cmd=ping;seq=1'), 14)
 | S4-1 | 三个项目构建 | `DobotArmBridge`(**x86**)、`DobotArm`(AnyCPU)、`VisionSort`(**x64**) 全部 0 error / 0 warning |
 | S4-2 | 位数与依赖核对 | PE 头核对 `DobotArmBridge.exe` = **0x014C(x86)**；`bin\...\ArmBridge\` 下 exe + 6 个原生 DLL 齐全 |
 
-### 6.3 现场（T-live，本机无机械臂必须现场做）
+### 6.3 现场（T-live）—— ✅ 已随真机联调通过（2026-09-28）
+
+> 下列 6 条既是**首次联调步骤**，也是**每次现场开机/换线后的作业清单**；本次真机联调已按此跑过。
+> 🔶 逐条的原始记录（报文/截图）如需归档，按此表补。
 
 1. **USB 先插上**，设备管理器确认 COM 号（官方 Magician 固定 **115200-8-N-1**）；先关闭 DobotStudio/官方 demo（否则串口被占用）；
 2. 按 S1-1 → S1-8 顺序；**S1-3 是关卡**：它不过，后面全部不用试；
@@ -370,9 +373,9 @@ $c.Send([Text.Encoding]::ASCII.GetBytes('cmd=ping;seq=1'), 14)
 
 ## 八、落盘顺序（分三步，每步独立验收）
 
-1. ✅ **桥接进程**（`DobotArmBridge` + `deps` + P/Invoke + KV 服务）→ 手工 UDP 自测 **S1-1~S1-4 已通过**（见 §10.2 V1–V11；本机可完成，验的是"原生 DLL 能不能在本机正确加载"）→ 有真机则做 S1-5~S1-8；
+1. ✅ **桥接进程**（`DobotArmBridge` + `deps` + P/Invoke + KV 服务）→ 手工 UDP 自测 **S1-1~S1-4 已通过**（见 §10.2 V1–V11；本机可完成，验的是"原生 DLL 能不能在本机正确加载"）→ ✅ **有真机后的 S1-5~S1-8 已于 2026-09-28 现场通过**；
 2. ✅ **`DobotArm` 改造**（共享线协议 + `UdpBridgeTransport` + `BridgeProcess` + 客户端内部改写）+ **删除 5 个已无用途的文件** → 假桥接器自测 S2/S3 **30 项全过**（见 §11.2）；
-3. ✅ **VisionSort 接线**（设置字段、`grpRobotCfg` 三个控件改 + 一个 CheckBox、自动启动、csproj 拷贝规则）→ 构建与部署 B1–B4、界面探针 P1–P4 **21 项全过**（见 §12）→ 现场 T-live。
+3. ✅ **VisionSort 接线**（设置字段、`grpRobotCfg` 三个控件改 + 一个 CheckBox、自动启动、csproj 拷贝规则）→ 构建与部署 B1–B4、界面探针 P1–P4 **21 项全过**（见 §12）→ ✅ **现场 T-live 已通过（2026-09-28）**。
 
 > 每步我都会先给你看改动清单再落盘；**第 1 步做完就能拿到"官方 DLL 在本机可用"这个结论**，后面两步都是可控的常规接线。
 
@@ -434,7 +437,7 @@ $c.Send([Text.Encoding]::ASCII.GetBytes('cmd=ping;seq=1'), 14)
 | V10 | 位数核对 | ✅ exe 与 6 个原生 DLL 的 PE 头全是 `0x014C`(x86) |
 | V11 | 构建 | ✅ 0 error / 0 warning |
 
-**尚未验证（必须真机）**：`connect` 成功路径、`pose`/`alarms`/`home`/`moveJ`/`jog`/`suction` 的实际动作、`SetQueuedCmdClear+StartExec` 之后运动是否真的执行、运动参数下发效果 —— 即 §6.1 的 S1-5~S1-8。
+**现场真机验证：✅ 已通过（2026-09-28）**——`connect` 成功路径、`pose`/`alarms`/`home`/`moveJ`/`jog`/`suction` 的实际动作、`SetQueuedCmdClear+StartExec` 之后运动是否真的执行、运动参数下发效果，即 §6.1 的 S1-5~S1-8，已随**全流程连续分拣闭环**在真机上跑通（机械臂按视觉像素→九点标定→mm 实际完成 NG 抓取与放料）。
 
 ### 10.3 自测中发现并改掉的问题
 
@@ -517,13 +520,13 @@ $c.Send([Text.Encoding]::ASCII.GetBytes('cmd=ping;seq=1'), 14)
 ### 12.4 遗留的一个小口子（**决定：2026-09-17 暂时不动**）
 
 > **结论：保持现状（下面选项 3）** —— 开关仍只能在代码里改，覆盖范围仍是 72/81/83。
-> 真机第一次联调时若真遇到"点动不动"，再回来做「界面勾选框 + 把 71 补进下发清单」这两件事（补 71 的收益/代价见下面那张表）。
+> **2026-09-28 现场真机联调后追记**：本次联调机械臂的到位与吸盘动作正常，**没有触发"点动不动"这条分支**，因此界面勾选框没加、71 也没补进下发清单。🔶 若现场其实调过 `ConfigureMotionParams`，把改法回填到这里（否则下次现场遇到同样现象还得重新推一遍）。
 
 `DobotArmSettings.ConfigureMotionParams`（是否下发 72/81/83 运动参数）**目前只能在代码里改**：界面没有开关，`sysparam.json` 也不存它。现场若遇到"点动不动/定点不动"，§6.3 的做法就要重新编译。三个选择：
 
 1. 在 `grpRobotCfg` 再加一个勾选框（和「自动启动桥接进程」同款，最直观）；
 2. 只把它写进 `sysparam.json`（不动界面，现场改文件）；
-3. 维持现状（真机第一次联调时再看要不要加）。
+3. 维持现状（首轮真机联调时再看要不要加；**已于 2026-09-28 结清：没加**，见上面追记）。
 
 **另外，现有 `motion=1` 的覆盖范围本身也偏窄，建议一起定**：它只发 72（JOG 倍率）+ 81（PTP 坐标绝对值）+ 83（PTP 倍率）。
 而点动的真实速度 = **每轴绝对速度（70 关节 / 71 坐标）× 倍率（72）**，所以：
@@ -568,8 +571,8 @@ $c.Send([Text.Encoding]::ASCII.GetBytes('cmd=ping;seq=1'), 14)
 | R5 | **退出托管**：关 VisionSort → `shutdown` → 进程自己退出，无残留 | ✅ 10:26:09 |
 | R6 | 桥接进程自己记日志到 `ArmBridge\DobotArmBridge.log`（现场没人盯控制台也能查） | ✅ |
 
-> 仍然没变的结论：**S1-5~S1-8（真机 `connect` 成功路径 / `pose` / `home` / `moveJ` / `jog` / `suction` 的实际动作）做不到就是做不到**，
-> 上面这些取证不替代它们，只说明"VisionSort 这一侧到桥接进程这一侧"已经是真的了。
+> **2026-09-28 更新：S1-5~S1-8 已随现场真机联调通过**（真机 `connect` 成功路径 / `pose` / `home` / `moveJ` / `jog` / `suction` 的实际动作，见 §6.3 与 §10.2 尾注）。
+> 上面 §12.5 这些本机取证的意义不变：它们证明的是"VisionSort 这一侧到桥接进程这一侧"已经是真的；两者合起来才是完整证据链。
 
 ### 12.6 全量构建复核（2026-09-20）
 
@@ -619,4 +622,4 @@ Checksum = (256 - ((ID+Ctrl+ΣParams) mod 256)) mod 256；多字节小端
 |---|---|---|
 | v1.4 | TCP 文本协议 + `Services/RobotArmClient.cs` | 已废弃（v2.1 取代），记录见 v2.1 版文档 §10 |
 | v2.1 | 官方二进制协议 + UDP 8899 直连 + `DobotArm` 独立类库 | **代码已落盘、自测通过，本次被 v3.0 取代**（协议层删除，界面与设置沿用） |
-| v3.0 | 官方 `DobotDll.dll` + x86 桥接进程 + UDP 回环 IPC | **现行方案，已落盘并验证**（本机 V1–V11 / T1–T10 / B1–B4 / P1–P4 / R1–R6 / C1–C4 全过；只剩现场真机 T-live） |
+| v3.0 | 官方 `DobotDll.dll` + x86 桥接进程 + UDP 回环 IPC | **现行方案，已落盘并验证**（本机 V1–V11 / T1–T10 / B1–B4 / P1–P4 / R1–R6 / C1–C4 全过；**现场真机 T-live 已于 2026-09-28 通过**） |
