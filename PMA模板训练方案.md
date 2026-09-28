@@ -2,7 +2,7 @@
 
 > 项目：`D:\visionPor\20260914-资料\04-WinForms\VisionSort`（net48 / x64 / WinForms / VisionPro 9.0 CR2 59.2.0.0）
 > 页面：`Views/VisionConfigView.cs` → `grpPma`「PMA模板训练」分组
-> 依据文档：`20260914-笔记/联合编程01.md` §八、`README_预览说明.txt` §三.3、`20260909-note/visionPro09.md`
+> 依据文档：`20260914-笔记/联合编程01.md` §八、`20260909-note/visionPro09.md`（原引用的 `README_预览说明.txt` 已于 2026-09-28 由同目录 `README.md` 取代，构建/部署口径见其 §四/§五）
 > 版本：v1.5（**已落盘并实测通过**；定稿：保留训练后自检 A 方案 + 采集不作废旧模板 + 预览特征标注修复，见 §13.5/§13.6）
 > 状态：源码已实现；实测覆盖 T1/T2/T4/T5/T7/T8/T13 + 预览标注逐像素验证
 
@@ -33,11 +33,11 @@
 ### 2.1 相关文件
 
 | 文件 | 现状 |
-|---|---|
+|---|---|---|
 | `Views/VisionConfigView.cs` | 140 行；`_toolBlock` / `_job` / `_vppPath` 三个字段；`btnLoadVpp_Click` 已实现（加载 → 挂 `CogToolBlockEditV2` 到 `pnlVppHost`）；`btnSaveVpp_Click` 已实现；`btnSaveTpl_Click` 是**空方法**（135–138 行）；文件头注释写“阈值只读显示配方值”（本方案按 D2 修正） |
 | `Views/VisionConfigView.Designer.cs` | `grpPma` 内控件齐备：`picTemplate`(PictureBox/Zoom) + `flpPma`(btnGrabTpl / btnTrain / btnSaveTpl) + `cmbThreshold` / `cmbAngle` / `cmbPyramid`(标签「金字塔层数」) / `lblTplScore`；事件绑定只有 `btnSaveTpl.Click`，另两个按钮**未绑定** |
 | `VisionSort.csproj` | SDK 风格，Cognex 程序集（含 `Cognex.VisionPro.PMAlign`、`.ImageFile`、`.ImageProcessing`、`.Controls`、`.Display.Controls`）已引用 → **新增 .cs 无需改 csproj** |
-| 相机层 | 尚未实现（`btnCamConn/btnLive/btnSnap` 无事件）→ 采集训练图必须带兜底路径 |
+| 相机层 | 本方案写作时尚未实现（`btnCamConn/btnLive/btnSnap` 无事件）→ 采集训练图必须带兜底路径。**现已实现**（见 `相机设置方案.md`），当初设计的"三级退化取图"仍是现行设计 |
 
 ### 2.2 已核对的 VisionPro API（来源：`D:\cognex\VisionPro\ReferencedAssemblies\*.xml`）
 
@@ -105,7 +105,7 @@ VisionSort.Services
 ### 3.3 界面类新增成员（`VisionConfigView` 的 partial）
 
 | 成员 | 说明 |
-|---|---|
+|---|---|---|
 | `Func<ICogImage> TrainingImageProvider` | 相机层注入的取像回调（见 §4.7） |
 | `CogRecordDisplay TemplateDisplay` | **B 方案的前提**：`picTemplate` 换成 `CogRecordDisplay` 后挂上；未挂时退化为“只能看不能拖” |
 | `void AttachInteractiveTrainRegion()` | 把 `CurrentTrainRegion` 挂到 `InteractiveGraphics`，鼠标拖拽微调（见 §6.3） |
@@ -215,7 +215,7 @@ ApplyTrainRegion(region, resetOrigin: CurrentTrainRegion == null);
 | A. 相机配在 vpp 的 Image Source 里 | `CogAcqFifoTool.Operator` | 第 2 条 | QuickBuild 的「图像源」在 .NET 侧就是方案里的 `CogAcqFifoTool`：`acq.Run()` → `acq.OutputImage` |
 | B. 相机在我们自己的相机层（主运行页 live/snap） | 我们的 `ICogAcqFifo` | 第 1 条 | `TrainingImageProvider` 返回最近一帧；**训练页借图，不抢相机**（GigE 同一时刻基本只允许一个 FIFO 占用） |
 | C. vpp 有相机但 `Operator` 被外部赋值（联合编程01 §三 例3） | 我们的 FIFO | 第 1 条 | 同上；不要重复 `Run()`，避免和主运行页抢帧 |
-| D. 没相机 / 离线调试 | — | 第 3 条 | 选本地图片（**本轮验收就靠它**，相机层尚未实现） |
+| D. 没相机 / 离线调试 | — | 第 3 条 | 选本地图片（**本轮验收就靠它**，当时相机层尚未实现；现已有相机层，这条路仍是离线调试的保底） |
 
 **D10（按默认：简单版）**：半自动（Semi）触发时 `Func<ICogImage>` 表达不了“等触发”——provider 返回 `null`，页面提示“请在相机分组里触发一次拍照后再点采集”。事件式（`RequestFrame()` + `FrameArrived`，按钮显示“等待触发…”）留作后续扩展。
 
@@ -391,7 +391,7 @@ rect.Interactive      = true;
 | 彩色图直接训练会失败 | T4 失败 | `EnsureGreyImage()` 统一走 `CogImageConvertTool(Intensity)` |
 | `CogRecordDisplay.Fit()` 重载差异 | 编译风险 | 若报错改 `Fit(true)`（`CogDisplay.Fit(bool)` 已在 XML 核对） |
 | 取像工具 `OutputImage` 为空 / `Operator` 未配置 | 采集无图、`Run()` 抛异常 | 取图后判空并提示，回退本地图片；提示去相机分组配相机 |
-| 相机层尚未实现 | 真机路径暂时不可用 | `TrainingImageProvider` 预留注入点，本轮用本地图片验收 |
+| 相机层尚未实现（当时） | 真机路径暂时不可用 | `TrainingImageProvider` 预留注入点，本轮用本地图片验收；**该注入点现已由相机层接通，2026-09-28 现场真机联调已完成** |
 | 操作大图（如 500 万像素）时 UI 卡顿 | 体验 | 训练/采集期间 `Cursor.WaitCursor` + `_pmaBusy`；后续可加进度提示 |
 
 ---
@@ -543,4 +543,3 @@ picTemplate.Fit(true);                           // ④ 最后适配（连同标
    - 特征标注在预览里只占角落很小一块（不是代码问题）；
    - 自检分数只有 **0.895** 且诊断提示“训练图像显示模糊 / 信息可能不足以测量 Y 轴比例”。
    **建议**：在预览里把区域拖到工件特征上（B 功能）后重新『训练模板』，或回 QuickBuild 重画区域并保存 VPP，分数与标注覆盖范围都会明显改善。
-
