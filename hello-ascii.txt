@@ -1,1 +1,0 @@
-test ascii path retry
